@@ -20,11 +20,10 @@
               {{ __('*') }}
             </span>
 
-            <!--  If field is nova-translatable, render separate locale-tabs   -->
             <nova-translatable-locale-tabs
-              style="padding: 0"
-              class="o1-ml-auto"
               v-if="rowField.component === 'translatable-field'"
+              class="o1-ml-auto"
+              style="padding: 0"
               :locales="rowField.formattedLocales"
               :display-type="rowField.translatable.display_type"
               :active-locale="activeLocales[i] || rowField.formattedLocales[0].key"
@@ -41,16 +40,15 @@
           handle=".vue-draggable-handle"
         >
           <template #item="{ element, index }">
-            <div class="simple-repeatable-row o1-flex o1-py-2 o1-pl-3 o1-relative o1-rounded-md">
+            <div class="simple-repeatable-row o1-relative o1-rounded-md o1-py-2 o1-pl-3">
               <div class="vue-draggable-handle o1-flex o1-justify-center o1-items-center o1-cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" class="fill-current">
-                  <path
-                    d="M4 5h16a1 1 0 0 1 0 2H4a1 1 0 1 1 0-2zm0 6h16a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2zm0 6h16a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2z"
-                  />
+                  <path d="M4 5h16a1 1 0 0 1 0 2H4a1 1 0 1 1 0-2zm0 6h16a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2zm0 6h16a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2z" />
                 </svg>
               </div>
 
-              <div class="simple-repeatable-fields-wrapper o1-w-full o1-flex">
+              <!-- ✅ CAMPI IN GRIGLIA -->
+              <div class="simple-repeatable-fields-wrapper grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 w-full">
                 <component
                   v-for="(rowField, j) in element"
                   :key="j"
@@ -58,7 +56,7 @@
                   :field="rowField"
                   :errors="repeatableValidation.errors"
                   :unique-id="getUniqueId(field, rowField)"
-                  class="o1-mr-3"
+                  class="w-full"
                   :style="{ maxWidth: rowField.nsrWidth || null }"
                 />
               </div>
@@ -68,13 +66,7 @@
                 @click="deleteRow(index)"
                 v-if="canDeleteRows"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  class="o1-fill-inherit"
-                >
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" class="o1-fill-inherit">
                   <path
                     d="M8 6V4c0-1.1.9-2 2-2h4a2 2 0 012 2v2h5a1 1 0 010 2h-1v12a2 2 0 01-2 2H6a2 2 0 01-2-2V8H3a1 1 0 110-2h5zM6 8v12h12V8H6zm8-2V4h-4v2h4zm-4 4a1 1 0 011 1v6a1 1 0 01-2 0v-6a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 01-2 0v-6a1 1 0 011-1z"
                   />
@@ -87,8 +79,8 @@
         <DefaultButton
           v-if="canAddRows"
           @click="addRow"
-          class="add-button btn btn-default btn-primary"
-          :class="{ 'delete-width': canDeleteRows, 'mt-3': rows.length }"
+          class="add-button btn btn-default btn-primary mt-3"
+          :class="{ 'delete-width': canDeleteRows }"
           type="button"
         >
           {{ field.addRowLabel }}
@@ -115,46 +107,38 @@ export default {
   methods: {
     fill(formData) {
       const ARR_REGEX = () => /\[\d+\]$/g;
-
       const allValues = [];
 
       for (const row of this.rows) {
-        let formData = new FormData();
+        let tempForm = new FormData();
         const rowValues = {};
 
-        // Fill formData with field values
-        row.forEach(field => field.fill(formData));
+        row.forEach(field => field.fill(tempForm));
 
-        // Save field values to rowValues
-        for (const item of formData) {
-          let normalizedValue = null;
-
+        for (const item of tempForm) {
           let key = item[0];
-          if (key.split('---').length === 3) {
-            key = key.split('---').slice(1).join('---');
+          let value;
+
+          try {
+            value = JSON.parse(item[1]);
+          } catch {
+            value = item[1];
           }
+
+          if (key.includes('---')) key = key.split('---').slice(1).join('---');
           key = key.replace(/---\d+/, '');
 
-          // Is key is an array, we need to remove the '.en' part from '.en[0]'
           const isArray = !!key.match(ARR_REGEX());
           if (isArray) {
             const result = ARR_REGEX().exec(key);
             key = `${key.slice(0, result.index)}${key.slice(result.index + result[0].length)}`;
           }
 
-          try {
-            // Attempt to parse value
-            normalizedValue = JSON.parse(item[1]);
-          } catch (e) {
-            // Value is already a valid string
-            normalizedValue = item[1];
-          }
-
           if (isArray) {
             if (!rowValues[key]) rowValues[key] = [];
-            rowValues[key].push(normalizedValue);
+            rowValues[key].push(value);
           } else {
-            _set(rowValues, key, normalizedValue);
+            _set(rowValues, key, value);
           }
         }
 
@@ -175,45 +159,38 @@ export default {
 
   computed: {
     extraAttributes() {
-      const attrs = this.currentField.extraAttributes;
-      return {
-        ...attrs,
-      };
+      return { ...this.currentField.extraAttributes };
     },
+
     repeatableValidation() {
       const fields = this.fields;
       const errors = this.errors.errors;
       const repeaterAttr = this.field.attribute;
-      const safeRepeaterAttr = this.field.attribute.replace(/.{16}__/, '');
+      const safeRepeaterAttr = repeaterAttr.replace(/.{16}__/, '');
       const erroredFieldLocales = {};
       const formattedKeyErrors = {};
 
-      // Find errored locales
       for (const field of fields) {
         const fieldAttr = field.originalAttribute;
-
-        // Find all errors related to this field
-        const relatedErrors = Object.keys(errors).filter(
-          err => !!err.match(new RegExp(`^${safeRepeaterAttr}.\\d+.${fieldAttr}`))
+        const relatedErrors = Object.keys(errors).filter(err =>
+          err.match(new RegExp(`^${safeRepeaterAttr}.\\d+.${fieldAttr}`))
         );
 
-        const isTranslatable = field.component === 'translatable-field';
-        if (isTranslatable) {
-          const foundLocales = relatedErrors.map(errorKey => errorKey.split('.').slice(-1)).flat();
-          erroredFieldLocales[fieldAttr] = foundLocales;
+        if (field.component === 'translatable-field') {
+          erroredFieldLocales[fieldAttr] = relatedErrors
+            .map(key => key.split('.').slice(-1))
+            .flat();
         }
 
-        // Format field
         relatedErrors.forEach(errorKey => {
           const rowIndex = errorKey.split('.')[1];
-          let uniqueKey = `${repeaterAttr}---${field.originalAttribute}---${rowIndex}`;
+          let key = `${repeaterAttr}---${field.originalAttribute}---${rowIndex}`;
 
-          if (isTranslatable) {
-            const locale = errorKey.split('.').slice(-1)[0];
-            uniqueKey = `${uniqueKey}.${locale}`;
+          if (field.component === 'translatable-field') {
+            key += `.${errorKey.split('.').slice(-1)[0]}`;
           }
 
-          formattedKeyErrors[uniqueKey] = errors[errorKey];
+          formattedKeyErrors[key] = errors[errorKey];
         });
       }
 
@@ -224,15 +201,11 @@ export default {
     },
 
     canAddRows() {
-      if (!this.currentField.canAddRows) return false;
-      if (!!this.currentField.maxRows) return this.rows.length < this.currentField.maxRows;
-      return true;
+      return this.currentField.canAddRows && (!this.currentField.maxRows || this.rows.length < this.currentField.maxRows);
     },
 
     canDeleteRows() {
-      if (!this.currentField.canDeleteRows) return false;
-      if (!!this.currentField.minRows) return this.rows.length > this.currentField.minRows;
-      return true;
+      return this.currentField.canDeleteRows && (!this.currentField.minRows || this.rows.length > this.currentField.minRows);
     },
   },
 };
@@ -241,52 +214,7 @@ export default {
 <style lang="scss">
 .simple-repeatable.form-field {
   .simple-repeatable-row {
-    width: calc(100% + 68px);
-
-    > .simple-repeatable-fields-wrapper {
-      .translatable-field {
-        padding-top: 0 !important;
-      }
-
-      > *,
-        // Improve compatibility with nova-translatable
-      .translatable-field > div:not(:first-child) > div {
-        flex: 1;
-        flex-shrink: 0;
-        min-width: 0;
-        border: none !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-
-        // Hide name
-        > *:nth-child(1):not(:only-child) {
-          display: none;
-        }
-
-        > *:only-child {
-          > *:nth-child(1):not(:only-child) {
-            display: none;
-          }
-
-          > :nth-child(2) {
-            width: 100% !important;
-            padding: 0 !important;
-          }
-        }
-
-        // Improve compatibility with nova-compact-theme
-        .compact-nova-field-wrapper {
-          padding: 0 !important;
-        }
-
-        // Fix field width and padding
-        > :nth-child(2) {
-          width: 100% !important;
-          padding: 0 !important;
-        }
-      }
-    }
-
+    width: 100%;
     margin-left: -46px;
 
     .delete-icon {
@@ -296,8 +224,8 @@ export default {
     }
 
     .vue-draggable-handle {
-      height: 36px;
       width: 36px;
+      height: 36px;
       margin-right: 10px;
 
       &:hover {
@@ -311,34 +239,18 @@ export default {
   }
 
   .add-button {
-    width: calc(100% + 11px);
+    width: 100%;
 
     &.delete-width {
       width: calc(100% - 22px);
     }
   }
 
-  > :nth-child(1) {
-    min-width: 20%;
-  }
-
-  // Make field area full width
-  > :nth-child(2) {
-    width: 100% !important;
-    margin-right: 24px;
-  }
-
-  // Compact theme support
-  > *:only-child {
-    > *:nth-child(1) {
-      min-width: 20%;
-    }
-
-    // Make field area full width
-    > *:nth-child(2) {
-      width: 100% !important;
-      margin-right: 24px;
-    }
+  .simple-repeatable-fields-wrapper {
+    display: grid;
+    gap: 1rem;
+    width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 }
 </style>
